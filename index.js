@@ -178,7 +178,7 @@ app.post('/api/message', async (req,res)=>{
   const { message='' } = req.body || {};
   const m = detectIntent(message);
   let raw = m ? fill(m.answer_template, apartment)
-              : 'I did not find a direct answer. Try a button or use keywords (wifi, gas, transport, eat…).';
+              : 'I did not find a direct answer. Please use the buttons below (wifi, gas, transport, eat, etc.).';
   const text = await polishEN(raw, message);
   res.json({ text, intent: m?.intent || null });
 });
@@ -263,12 +263,24 @@ document.getElementById('voiceBtn').addEventListener('click',e=>{
   if (voiceOn) warm();
 });
 
-function add(type, txt){ const d=document.createElement('div'); d.className='msg '+(type==='me'?'me':'wd'); d.textContent=txt; chatEl.appendChild(d); chatEl.scrollTop=chatEl.scrollHeight; }
+function add(type, txt){
+  const d=document.createElement('div');
+  d.className='msg '+(type==='me'?'me':'wd');
+  d.textContent=txt;
+  chatEl.appendChild(d);
+  chatEl.scrollTop=chatEl.scrollHeight;
+}
+
+// ⬇️ NUOVO MESSAGGIO INIZIALE (senza "Hello")
 function welcome(){
-  add('wd','Welcome! I can help with Wi‑Fi, check‑in/out, water/AC, bathroom, gas, restaurants & drinks, shopping, what to visit, experiences, day trips, transport, services, emergency. (English)');
+  add('wd',"I'm Samantha, your virtual guide. Tap a button for quick answers about Wi‑Fi, check‑in/out, water & AC, bathroom, gas, restaurants & drinks, shopping, places to visit, experiences, day trips, transport, services, and emergencies.");
   const q=document.createElement('div'); q.className='quick';
   const items=${JSON.stringify(buttons)};
-  for(const it of items){ const b=document.createElement('button'); b.textContent=it; b.onclick=()=>{ input.value=it; send(); }; q.appendChild(b); }
+  for(const it of items){
+    const b=document.createElement('button'); b.textContent=it;
+    b.onclick=()=>{ input.value=it; send(); };
+    q.appendChild(b);
+  }
   chatEl.appendChild(q);
 }
 
@@ -279,7 +291,9 @@ async function send(){
     const r=await fetch('/api/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
     const data=await r.json(); const bot=data.text||'Sorry, something went wrong.';
     add('wd',bot); speak(bot);
-  }catch{ add('wd','Network error. Please try again.'); }
+  }catch{
+    add('wd','Network error. Please try again.');
+  }
 }
 sendBtn.addEventListener('click',send);
 input.addEventListener('keydown',e=>{ if(e.key==='Enter') send(); });
