@@ -25,9 +25,8 @@ const apartment = {
   wifi_ssid: 'See router label',
   wifi_password: 'See router label',
 
-  // Water / AC / Bathroom
+  // Water / Bathroom
   water_note: 'Tap water is safe to drink. Hot water is always on.',
-  ac_note: 'Please switch off the air conditioning when you go out.',
   bathroom_amenities: 'Toilet paper, hand soap, hairdryer, bath mat.',
   towels_note: 'Per guest: 1 large + 1 medium towel. Bed is prepared on arrival.',
 
@@ -96,7 +95,7 @@ const apartment = {
 
   // Check‑out
   checkout_note:
-    'Before leaving: turn off lights/AC, close windows, leave keys on the table, gently close the door.',
+    'Before leaving: turn off lights, close windows, leave keys on the table, gently close the door.',
 
   // Host
   host_phone: '+39 335 5245756'
@@ -112,15 +111,13 @@ const faqs = [
     answer_template: `{checkout_note}` },
   { intent: 'water', utterances: ['water','hot water','drinkable','tap'],
     answer_template: `{water_note}` },
-  { intent: 'ac', utterances: ['ac','air conditioning','aircon','air'],
-    answer_template: `{ac_note}` },
   { intent: 'bathroom', utterances: ['bathroom','hairdryer','soap','towels','amenities'],
     answer_template: `Bathroom: {bathroom_amenities}\nTowels: {towels_note}` },
-  { intent: 'gas', utterances: ['gas','kitchen','cook','flame','burner'],
+  { intent: 'gas', utterances: ['gas','kitchen','cook','flame','burner','washer'],
     answer_template: `Gas use: {gas_steps}\nWasher: {washer_note}` },
   { intent: 'building', utterances: ['building','elevator','door','hours','concierge','intercom'],
     answer_template: `Intercom: {intercom_note}\nElevator: {elevator_note}\nMain door: {main_door_hours}\nConcierge: {concierge}` },
-  { intent: 'services', utterances: ['pharmacy','hospital','atm','sim','laundry','luggage','numbers'],
+  { intent: 'services', utterances: ['services','pharmacy','hospital','atm','sim','laundry','luggage','numbers'],
     answer_template: `Pharmacy: {pharmacy}\nHospital: {hospital}\nATMs: {atms}\nSIMs: {sims}\nLaundry: {laundry}\nLuggage: {luggage}` },
   { intent: 'transport', utterances: ['transport','tram','bus','taxi','airport','train'],
     answer_template: `{transport}\nAirports: {airports}\nTaxi: {taxi}` },
@@ -130,11 +127,11 @@ const faqs = [
     answer_template: `{drink}` },
   { intent: 'shop', utterances: ['shop','market','shopping','boutique'],
     answer_template: `{shop}` },
-  { intent: 'visit', utterances: ['what to visit','see','sight','attraction','museum'],
+  { intent: 'visit', utterances: ['visit','what to visit','see','sight','attraction','museum'],
     answer_template: `{visit}` },
   { intent: 'experience', utterances: ['experience','walk','tour','itinerary','sunset','romantic'],
     answer_template: `{experiences}\nRomantic route: {romantic_walk}` },
-  { intent: 'day trips', utterances: ['day trip','tivoli','ostia','castelli','excursion'],
+  { intent: 'day trips', utterances: ['day trips','day trip','tivoli','ostia','castelli','excursion'],
     answer_template: `{daytrips}` },
   { intent: 'emergency', utterances: ['emergency','police','ambulance','fire','doctor','vet'],
     answer_template: `{emergency}` }
@@ -146,13 +143,17 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 function norm(s){ return (s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+
+// Intent molto tollerante: match immediato se contiene il testo del bottone o una delle utterances
 function detectIntent(msg){
-  const t = norm(msg); let best=null, scoreBest=0;
-  for (const f of faqs){ let s=0; for (const u of f.utterances){ if (t.includes(norm(u))) s++; }
-    if (s>scoreBest){ best=f; scoreBest=s; }
+  const t = norm(msg);
+  for (const f of faqs){
+    const tokens = [f.intent, ...(f.utterances || [])];
+    if (tokens.some(u => t.includes(norm(u)))) return f;
   }
-  return scoreBest>0 ? best : null;
+  return null;
 }
+
 function fill(tpl, obj){ return tpl.replace(/\{(\w+)\}/g,(_,k)=>obj[k] ?? `{${k}}`); }
 
 async function polishEN(raw, userMsg){
@@ -178,7 +179,7 @@ app.post('/api/message', async (req,res)=>{
   const { message='' } = req.body || {};
   const m = detectIntent(message);
   let raw = m ? fill(m.answer_template, apartment)
-              : 'I did not find a direct answer. Please use the buttons below (wifi, gas, transport, eat, etc.).';
+              : 'I did not find a direct answer. Try a button or use keywords (wifi, gas, transport, eat…).';
   const text = await polishEN(raw, message);
   res.json({ text, intent: m?.intent || null });
 });
@@ -186,7 +187,7 @@ app.post('/api/message', async (req,res)=>{
 // ---------- UI (single file) ----------
 app.get('/', (_req,res)=>{
   const buttons = [
-    'wifi','check in','check out','water','AC','bathroom','gas',
+    'wifi','check in','check out','water','bathroom','gas',
     'eat','drink','shop','visit','experience','day trips',
     'transport','services','emergency'
   ];
@@ -236,7 +237,7 @@ input{flex:1;padding:12px;border:1px solid #cbd5e1;border-radius:10px;outline:no
   <main id="chat" aria-live="polite"></main>
 
   <footer>
-    <input id="input" placeholder="Type a message… e.g., wifi, gas, transport" autocomplete="off">
+    <input id="input" placeholder="Type a keyword… e.g., wifi, gas, transport" autocomplete="off">
     <button id="sendBtn">Send</button>
   </footer>
 </div>
@@ -245,35 +246,9 @@ const chatEl = document.getElementById('chat');
 const input = document.getElementById('input');
 const sendBtn = document.getElementById('sendBtn');
 
-let voiceOn = false, pick = null;
-function pickSamantha(){
-  const all = window.speechSynthesis ? (speechSynthesis.getVoices()||[]) : [];
-  const en = all.filter(v=>/en-/i.test(v.lang));
-  pick = en.find(v=>/samantha/i.test(v.name)) || en[0] || all[0] || null;
-}
-if ('speechSynthesis' in window){
-  pickSamantha(); window.speechSynthesis.onvoiceschanged = pickSamantha;
-}
-function warm(){ try{ const u=new SpeechSynthesisUtterance('Voice enabled.'); if(pick) u.voice=pick; u.lang='en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{} }
-function speak(t){ if(!voiceOn||!('speechSynthesis'in window))return; try{ const u=new SpeechSynthesisUtterance(t); if(pick) u.voice=pick; u.lang='en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{} }
-
-document.getElementById('voiceBtn').addEventListener('click',e=>{
-  voiceOn=!voiceOn; e.currentTarget.setAttribute('aria-pressed',String(voiceOn));
-  e.currentTarget.textContent = voiceOn ? '🔊 Voice: On' : '🔇 Voice: Off';
-  if (voiceOn) warm();
-});
-
-function add(type, txt){
-  const d=document.createElement('div');
-  d.className='msg '+(type==='me'?'me':'wd');
-  d.textContent=txt;
-  chatEl.appendChild(d);
-  chatEl.scrollTop=chatEl.scrollHeight;
-}
-
-// ⬇️ NUOVO MESSAGGIO INIZIALE (senza "Hello")
+// --- Minimal welcome text aligned to buttons ---
 function welcome(){
-  add('wd',"I'm Samantha, your virtual guide. Tap a button for quick answers about Wi‑Fi, check‑in/out, water & AC, bathroom, gas, restaurants & drinks, shopping, places to visit, experiences, day trips, transport, services, and emergencies.");
+  add('wd',"Tap a button to get a quick answer. You can also type a keyword (wifi, gas, transport, eat…).");
   const q=document.createElement('div'); q.className='quick';
   const items=${JSON.stringify(buttons)};
   for(const it of items){
@@ -284,12 +259,58 @@ function welcome(){
   chatEl.appendChild(q);
 }
 
+// --- Voice (Samantha EN) ---
+let voiceOn=false, voicePick=null;
+function pickSamantha(){
+  const all = window.speechSynthesis ? (speechSynthesis.getVoices()||[]) : [];
+  const en = all.filter(v=>/en-/i.test(v.lang));
+  voicePick = en.find(v=>/samantha/i.test(v.name)) || en[0] || all[0] || null;
+}
+if ('speechSynthesis' in window){
+  pickSamantha(); window.speechSynthesis.onvoiceschanged = pickSamantha;
+}
+function warm(){
+  try{
+    const u=new SpeechSynthesisUtterance('Voice enabled.');
+    if(voicePick) u.voice=voicePick; u.lang='en-US';
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch{}
+}
+function speak(t){
+  if(!voiceOn||!('speechSynthesis'in window))return;
+  try{
+    const u=new SpeechSynthesisUtterance(t);
+    if(voicePick) u.voice=voicePick; u.lang='en-US';
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch{}
+}
+document.getElementById('voiceBtn').addEventListener('click',e=>{
+  voiceOn=!voiceOn; e.currentTarget.setAttribute('aria-pressed',String(voiceOn));
+  e.currentTarget.textContent = voiceOn ? '🔊 Voice: On' : '🔇 Voice: Off';
+  if (voiceOn) warm();
+});
+
+// --- Chat helpers ---
+function add(type, txt){
+  const d=document.createElement('div');
+  d.className='msg '+(type==='me'?'me':'wd');
+  d.textContent=txt;
+  chatEl.appendChild(d);
+  chatEl.scrollTop=chatEl.scrollHeight;
+}
+
+// --- Send ---
 async function send(){
   const text=(input.value||'').trim(); if(!text) return;
   add('me',text); input.value='';
   try{
-    const r=await fetch('/api/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
-    const data=await r.json(); const bot=data.text||'Sorry, something went wrong.';
+    const r=await fetch('/api/message',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:text})
+    });
+    const data=await r.json();
+    const bot=data.text||'Sorry, something went wrong.';
     add('wd',bot); speak(bot);
   }catch{
     add('wd','Network error. Please try again.');
@@ -297,6 +318,7 @@ async function send(){
 }
 sendBtn.addEventListener('click',send);
 input.addEventListener('keydown',e=>{ if(e.key==='Enter') send(); });
+
 welcome();
 </script>
 </body></html>`;
