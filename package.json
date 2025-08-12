@@ -1,0 +1,15 @@
+{
+  "name": "guest-assistant-scala",
+  "version": "1.0.0",
+  "description": "Guest virtual assistant Via della Scala",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "openai": "^4.0.0"
+  }
+}
