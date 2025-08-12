@@ -1,5 +1,3 @@
-// index.js — Guest Assistant (Via della Scala 17) — EN + Samantha voice
-
 import express from 'express';
 import cors from 'cors';
 import OpenAI from 'openai';
@@ -19,7 +17,7 @@ const apartment = {
   checkin_time: '15:00',
   checkout_time: '11:00',
 
-  // Wi‑Fi
+  // Wi-Fi
   wifi_note:
     'Router on the right side of the living room, on a bench. Black cylinder-shaped device; turn it to see SSID & password on the back.',
   wifi_ssid: 'See router label',
@@ -66,7 +64,7 @@ const apartment = {
 
   // Safety & useful numbers
   emergency:
-    'EU Emergency 112 • Police 113 • Ambulance 118 • Fire 115 • English‑speaking doctor +39 06 488 2371 • 24h vet +39 06 660 681',
+    'EU Emergency 112 • Police 113 • Ambulance 118 • Fire 115 • English-speaking doctor +39 06 488 2371 • 24h vet +39 06 660 681',
 
   // Eat / Drink / Shop / Visit / Experiences / Day trips
   eat: [
@@ -93,7 +91,7 @@ const apartment = {
   romantic_walk:
     'Start: Via della Scala 17 → Santa Maria in Trastevere → Ponte Sisto (sunset) → Campo de’ Fiori → Piazza Navona → Fior di Luna gelato → Biscottificio Innocenti → back to Via della Scala 17.',
 
-  // Check‑out
+  // Check-out
   checkout_note:
     'Before leaving: turn off lights, close windows, leave keys on the table, gently close the door.',
 
@@ -104,16 +102,16 @@ const apartment = {
 // ---------- FAQ (keyword → template) ----------
 const faqs = [
   { intent: 'wifi', utterances: ['wifi','wi-fi','internet','password','router'],
-    answer_template: `Wi‑Fi: {wifi_note}\nNetwork: {wifi_ssid}. Password: {wifi_password}.` },
+    answer_template: `Wi-Fi: {wifi_note}\nNetwork: {wifi_ssid}. Password: {wifi_password}.` },
   { intent: 'check in', utterances: ['check in','arrival','access','intercom','doorbell','code'],
-    answer_template: `Check‑in from {checkin_time}. Intercom: {intercom_note}\nNeed help? Call {host_phone}.` },
+    answer_template: `Check-in from {checkin_time}. Intercom: {intercom_note}\nNeed help? Call {host_phone}.` },
   { intent: 'check out', utterances: ['check out','leave','departure'],
     answer_template: `{checkout_note}` },
   { intent: 'water', utterances: ['water','hot water','drinkable','tap'],
     answer_template: `{water_note}` },
   { intent: 'bathroom', utterances: ['bathroom','hairdryer','soap','towels','amenities'],
     answer_template: `Bathroom: {bathroom_amenities}\nTowels: {towels_note}` },
-  { intent: 'gas', utterances: ['gas','kitchen','cook','flame','burner','washer'],
+  { intent: 'gas', utterances: ['gas','kitchen','cook','flame','burner'],
     answer_template: `Gas use: {gas_steps}\nWasher: {washer_note}` },
   { intent: 'building', utterances: ['building','elevator','door','hours','concierge','intercom'],
     answer_template: `Intercom: {intercom_note}\nElevator: {elevator_note}\nMain door: {main_door_hours}\nConcierge: {concierge}` },
@@ -131,7 +129,7 @@ const faqs = [
     answer_template: `{visit}` },
   { intent: 'experience', utterances: ['experience','walk','tour','itinerary','sunset','romantic'],
     answer_template: `{experiences}\nRomantic route: {romantic_walk}` },
-  { intent: 'day trips', utterances: ['day trips','day trip','tivoli','ostia','castelli','excursion'],
+  { intent: 'day trips', utterances: ['day trip','tivoli','ostia','castelli','excursion'],
     answer_template: `{daytrips}` },
   { intent: 'emergency', utterances: ['emergency','police','ambulance','fire','doctor','vet'],
     answer_template: `{emergency}` }
@@ -143,17 +141,13 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 function norm(s){ return (s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
-
-// Intent molto tollerante: match immediato se contiene il testo del bottone o una delle utterances
 function detectIntent(msg){
-  const t = norm(msg);
-  for (const f of faqs){
-    const tokens = [f.intent, ...(f.utterances || [])];
-    if (tokens.some(u => t.includes(norm(u)))) return f;
+  const t = norm(msg); let best=null, scoreBest=0;
+  for (const f of faqs){ let s=0; for (const u of f.utterances){ if (t.includes(norm(u))) s++; }
+    if (s>scoreBest){ best=f; scoreBest=s; }
   }
-  return null;
+  return scoreBest>0 ? best : null;
 }
-
 function fill(tpl, obj){ return tpl.replace(/\{(\w+)\}/g,(_,k)=>obj[k] ?? `{${k}}`); }
 
 async function polishEN(raw, userMsg){
@@ -184,7 +178,7 @@ app.post('/api/message', async (req,res)=>{
   res.json({ text, intent: m?.intent || null });
 });
 
-// ---------- UI (single file) ----------
+// ---------- UI ----------
 app.get('/', (_req,res)=>{
   const buttons = [
     'wifi','check in','check out','water','bathroom','gas',
@@ -237,7 +231,7 @@ input{flex:1;padding:12px;border:1px solid #cbd5e1;border-radius:10px;outline:no
   <main id="chat" aria-live="polite"></main>
 
   <footer>
-    <input id="input" placeholder="Type a keyword… e.g., wifi, gas, transport" autocomplete="off">
+    <input id="input" placeholder="Type a message… e.g., wifi, gas, transport" autocomplete="off">
     <button id="sendBtn">Send</button>
   </footer>
 </div>
@@ -246,79 +240,44 @@ const chatEl = document.getElementById('chat');
 const input = document.getElementById('input');
 const sendBtn = document.getElementById('sendBtn');
 
-// --- Minimal welcome text aligned to buttons ---
-function welcome(){
-  add('wd',"Tap a button to get a quick answer. You can also type a keyword (wifi, gas, transport, eat…).");
-  const q=document.createElement('div'); q.className='quick';
-  const items=${JSON.stringify(buttons)};
-  for(const it of items){
-    const b=document.createElement('button'); b.textContent=it;
-    b.onclick=()=>{ input.value=it; send(); };
-    q.appendChild(b);
-  }
-  chatEl.appendChild(q);
-}
-
-// --- Voice (Samantha EN) ---
-let voiceOn=false, voicePick=null;
+let voiceOn = false, pick = null;
 function pickSamantha(){
   const all = window.speechSynthesis ? (speechSynthesis.getVoices()||[]) : [];
   const en = all.filter(v=>/en-/i.test(v.lang));
-  voicePick = en.find(v=>/samantha/i.test(v.name)) || en[0] || all[0] || null;
+  pick = en.find(v=>/samantha/i.test(v.name)) || en[0] || all[0] || null;
 }
 if ('speechSynthesis' in window){
   pickSamantha(); window.speechSynthesis.onvoiceschanged = pickSamantha;
 }
-function warm(){
-  try{
-    const u=new SpeechSynthesisUtterance('Voice enabled.');
-    if(voicePick) u.voice=voicePick; u.lang='en-US';
-    speechSynthesis.cancel(); speechSynthesis.speak(u);
-  }catch{}
-}
-function speak(t){
-  if(!voiceOn||!('speechSynthesis'in window))return;
-  try{
-    const u=new SpeechSynthesisUtterance(t);
-    if(voicePick) u.voice=voicePick; u.lang='en-US';
-    speechSynthesis.cancel(); speechSynthesis.speak(u);
-  }catch{}
-}
+function warm(){ try{ const u=new SpeechSynthesisUtterance('Voice enabled.'); if(pick) u.voice=pick; u.lang='en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{} }
+function speak(t){ if(!voiceOn||!('speechSynthesis'in window))return; try{ const u=new SpeechSynthesisUtterance(t); if(pick) u.voice=pick; u.lang='en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{} }
+
 document.getElementById('voiceBtn').addEventListener('click',e=>{
   voiceOn=!voiceOn; e.currentTarget.setAttribute('aria-pressed',String(voiceOn));
   e.currentTarget.textContent = voiceOn ? '🔊 Voice: On' : '🔇 Voice: Off';
   if (voiceOn) warm();
 });
 
-// --- Chat helpers ---
-function add(type, txt){
-  const d=document.createElement('div');
-  d.className='msg '+(type==='me'?'me':'wd');
-  d.textContent=txt;
-  chatEl.appendChild(d);
-  chatEl.scrollTop=chatEl.scrollHeight;
+function add(type, txt){ const d=document.createElement('div'); d.className='msg '+(type==='me'?'me':'wd'); d.textContent=txt; chatEl.appendChild(d); chatEl.scrollTop=chatEl.scrollHeight; }
+function welcome(){
+  add('wd','Hi, I am Samantha, your virtual assistant. Tap the button to get a quick answer.');
+  const q=document.createElement('div'); q.className='quick';
+  const items=${JSON.stringify(buttons)};
+  for(const it of items){ const b=document.createElement('button'); b.textContent=it; b.onclick=()=>{ input.value=it; send(); }; q.appendChild(b); }
+  chatEl.appendChild(q);
 }
 
-// --- Send ---
 async function send(){
   const text=(input.value||'').trim(); if(!text) return;
   add('me',text); input.value='';
   try{
-    const r=await fetch('/api/message',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:text})
-    });
-    const data=await r.json();
-    const bot=data.text||'Sorry, something went wrong.';
+    const r=await fetch('/api/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text})});
+    const data=await r.json(); const bot=data.text||'Sorry, something went wrong.';
     add('wd',bot); speak(bot);
-  }catch{
-    add('wd','Network error. Please try again.');
-  }
+  }catch{ add('wd','Network error. Please try again.'); }
 }
 sendBtn.addEventListener('click',send);
 input.addEventListener('keydown',e=>{ if(e.key==='Enter') send(); });
-
 welcome();
 </script>
 </body></html>`;
