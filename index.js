@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-// OpenAI facoltativo: puoi lasciarlo, ma i contenuti sono già localizzati
+// OpenAI è facoltativo (i testi sono già localizzati offline)
 import OpenAI from 'openai';
 
 const app = express();
@@ -9,8 +9,7 @@ app.use(express.json());
 app.use(express.static('.')); // static (logo, favicon)
 
 // ----------------------------------------------------
-// Base (dati “neutri” che non cambiano con la lingua)
-// ----------------------------------------------------
+// Base (dati “neutri”)
 const base = {
   apartment_id: 'SCALA17',
   apt_label: { en:'Apartment', it:'Appartamento', fr:'Appartement', de:'Apartment', es:'Apartamento' },
@@ -22,8 +21,7 @@ const base = {
 };
 
 // ----------------------------------------------------
-// CONTENUTI LOCALIZZATI (IT/FR/DE/ES/EN)
-// ----------------------------------------------------
+// CONTENUTI LOCALIZZATI (EN/IT/FR/DE/ES)
 const APT_I18N = {
   en: {
     wifi_note: 'Router on the right side of the living room, on a bench. Black cylinder-shaped device; turn it to see SSID & password on the back.',
@@ -98,7 +96,7 @@ const APT_I18N = {
     towels_note: 'Par personne : 1 grande + 1 moyenne serviette. Le lit est prêt à l’arrivée.',
     gas_steps: 'Face au compteur de gaz : poignée en position horizontale = OUVERT ; vers le bas = FERMÉ. Pour cuisiner : 1) choisissez le brûleur, 2) appuyez et tournez la manette, 3) maintenez quelques secondes jusqu’à ce que la flamme soit stable, 4) relâchez.',
     washer_note: 'Le manuel de la machine à laver est dans le tiroir de la cuisine. S’il manque, cherchez votre modèle sur Google et téléchargez le PDF.',
-    intercom_note: "À l’entrée, deux colonnes d’interphones. Le vôtre se trouve dans la colonne la plus proche de la porte, côté gauche, premier depuis le bas. Après la première porte, le second interphone correspond à l’Interne A/1.",
+    intercom_note: "À l’entrée, deux colonnes d’interphones. Le vôtre est dans la colonne la plus proche de la porte, côté gauche, le premier depuis le bas. Après la première porte, le second interphone correspond à l’Interne A/1.",
     elevator_note: '—',
     main_door_hours: '—',
     concierge: '—',
@@ -130,7 +128,7 @@ const APT_I18N = {
     towels_note: 'Pro Gast: 1 großes + 1 mittleres Handtuch. Das Bett ist bei Ankunft bezogen.',
     gas_steps: 'Am Gaszähler: Metallhebel waagerecht = OFFEN; nach unten = GESCHLOSSEN. Zum Kochen: 1) Brenner wählen, 2) Knopf drücken & drehen, 3) ein paar Sekunden gedrückt halten bis die Flamme stabil ist, 4) loslassen.',
     washer_note: 'Waschmaschinenhandbuch in der Küchenschublade. Falls es fehlt, Modell bei Google suchen und PDF herunterladen.',
-    intercom_note: 'Am Eingang gibt es zwei Gegensprechanlagen. Ihre Einheit ist in der säulenförmigen Leiste links, direkt bei der Tür, die erste von unten. Nach der ersten Tür entspricht die zweite Gegensprechanlage „Intern A/1“.',
+    intercom_note: 'Am Eingang gibt es zwei Gegensprechanlagen. Ihre Einheit ist in der Leiste links, nahe der Tür, die erste von unten. Nach der ersten Tür entspricht die zweite Gegensprechanlage „Intern A/1“.',
     elevator_note: '—',
     main_door_hours: '—',
     concierge: '—',
@@ -139,7 +137,7 @@ const APT_I18N = {
     atms: 'Intesa Sanpaolo (Piazza Santa Maria in Trastevere), Unicredit (Viale Trastevere 108).',
     sims: 'Vodafone (Viale Trastevere 143), TIM (Piazza San Cosimato 70).',
     laundry: 'SB-Waschsalon: Via della Scala 51.',
-    luggage: 'Radical Storage-Standorte in Trastevere / bei Largo Argentina (online buchen).',
+    luggage: 'Radical-Storage-Standorte in Trastevere / bei Largo Argentina (online buchen).',
     transport: 'Tram 8 von Trastevere → Piazza Venezia. Bus 23 und H verbinden Vatikan, Piazza Venezia und Termini. In Trastevere ist Gehen am besten.',
     airports: 'Fiumicino: Tram 8 → Bahnhof Trastevere → FL1 (~45 Min). Ciampino: Terravision-Bus oder Taxi. Privater Transfer: Welcome Pickups.',
     taxi: 'Radio Taxi +39 06 3570 oder FreeNow-App.',
@@ -189,7 +187,6 @@ const APT_I18N = {
 
 // ----------------------------------------------------
 // TEMPLATE RISPOSTE per intent (localizzate)
-// ----------------------------------------------------
 const FAQ_TPL = {
   en: {
     wifi: `Wi-Fi: {wifi_note}\nNetwork: {wifi_ssid}. Password: {wifi_password}.`,
@@ -284,8 +281,7 @@ const FAQ_TPL = {
 };
 
 // ----------------------------------------------------
-// Intent matching (le keyword restano in EN)
-// ----------------------------------------------------
+// Intent matching (keyword in EN)
 const INTENTS = [
   { key:'wifi',      utter:['wifi','wi-fi','internet','password','router'] },
   { key:'checkin',   utter:['check in','arrival','access','intercom','doorbell','code'] },
@@ -315,24 +311,19 @@ function detectIntent(msg){
   }
   return best?.key || null;
 }
-
 function fill(tpl, dict){ return tpl.replace(/\{(\w+)\}/g,(_,k)=>dict[k] ?? `{${k}}`); }
 
-// OpenAI (facoltativo)
+// -------- OpenAI opzionale (non necessario per la localizzazione) --------
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
-
 async function polishOptional(text, lang){
-  if (!client) return text; // già localizzato
+  if (!client) return text;
   const sys = `You are a helpful assistant. Keep the language as: ${lang}. Do not change facts, names, numbers or codes.`;
   try{
     const r = await client.responses.create({
       model: OPENAI_MODEL,
-      input: [
-        { role:'system', content: sys },
-        { role:'user', content: text }
-      ]
+      input: [{ role:'system', content: sys }, { role:'user', content: text }]
     });
     return r.output_text || text;
   }catch{ return text; }
@@ -349,7 +340,6 @@ app.post('/api/message', async (req,res)=>{
     const tpl = FAQ_TPL[L][intent];
     out = fill(tpl, APT_I18N[L]);
   } else {
-    // messaggio di fallback localizzato
     const fallback = {
       en:'I did not find a direct answer. Try a button or use keywords (wifi, gas, transport, eat…).',
       it:'Non ho trovato una risposta diretta. Prova un pulsante o usa parole chiave (wifi, gas, trasporti, mangiare…).',
@@ -359,13 +349,11 @@ app.post('/api/message', async (req,res)=>{
     }[L];
     out = fallback;
   }
-
-  // opzionale rifinitura
   const text = await polishOptional(out, L);
   res.json({ text, intent });
 });
 
-// -------------- UI (invariata + switch lingue) --------------
+// -------------- UI (con switch lingue e TTS per lingua) --------------
 app.get('/', (_req,res)=>{
   const BUTTON_KEYS = ['wifi','check in','check out','water','bathroom','gas','eat','drink','shop','visit','experience','day trips','transport','services','emergency'];
   const UI_I18N = {
@@ -464,15 +452,98 @@ input{flex:1;padding:12px;border:1px solid #cbd5e1;border-radius:10px;outline:no
 <script>
 const UI_I18N = ${JSON.stringify(UI_I18N)};
 const BUTTON_KEYS = ${JSON.stringify(BUTTON_KEYS)};
+
 const chatEl = document.getElementById('chat');
 const input = document.getElementById('input');
 const sendBtn = document.getElementById('sendBtn');
 
+// Lang init (URL ?lang=xx -> localStorage -> navigator)
 const url = new URL(location);
 let lang = (url.searchParams.get('lang') || localStorage.getItem('lang') || (navigator.language||'en').slice(0,2)).toLowerCase();
 if(!UI_I18N[lang]) lang='en';
 url.searchParams.set('lang', lang); history.replaceState(null,'',url);
 localStorage.setItem('lang', lang);
+
+// ---------- TEXT-TO-SPEECH (voce madrelingua per lingua) ----------
+let voiceOn = false, pick = null;
+
+// Preferenze per ciascuna lingua (in ordine di priorità)
+const VOICE_PREFS = {
+  en: ['Samantha','Google US English'],
+  it: ['Alice','Eloisa','Google italiano'],
+  fr: ['Amelie','Thomas','Google français'],
+  de: ['Anna','Markus','Google Deutsch'],
+  es: ['Monica','Jorge','Paulina','Google español']
+};
+
+// Cerca una voce per nome (lista) e/o per lang
+function selectVoice(){
+  if(!('speechSynthesis' in window)) return null;
+  const all = speechSynthesis.getVoices() || [];
+  const prefs = VOICE_PREFS[lang] || [];
+  // 1) match per nome preferito
+  for(const name of prefs){
+    const v = all.find(v => (v.name||'').toLowerCase() === name.toLowerCase());
+    if(v) return v;
+  }
+  // 2) prima voce che inizia con il codice lingua (es. "it", "fr")
+  const byLang = all.find(v => (v.lang||'').toLowerCase().startsWith(lang));
+  if(byLang) return byLang;
+  // 3) fallback: prima voce disponibile
+  return all[0] || null;
+}
+
+function refreshVoice(){
+  pick = selectVoice();
+}
+
+if ('speechSynthesis' in window){
+  refreshVoice();
+  speechSynthesis.onvoiceschanged = refreshVoice;
+}
+
+// warm-up: micro-utterance (necessario su iOS/Safari)
+function warm(){
+  if(!('speechSynthesis' in window)) return;
+  try{
+    speechSynthesis.cancel();
+    const dot = new SpeechSynthesisUtterance('.');
+    dot.rate = 1; dot.pitch = 1; dot.volume = 0.01; // quasi muto
+    if(pick) dot.voice = pick;
+    dot.lang = pick?.lang || lang;
+    speechSynthesis.speak(dot);
+  }catch{}
+}
+
+function speak(t){
+  if(!voiceOn || !('speechSynthesis' in window)) return;
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(t);
+    if(pick) u.voice = pick;
+    u.lang = pick?.lang || lang; // garantisce pronuncia nella lingua
+    speechSynthesis.speak(u);
+  }catch{}
+}
+
+document.getElementById('voiceBtn').addEventListener('click',e=>{
+  voiceOn = !voiceOn;
+  e.currentTarget.setAttribute('aria-pressed', String(voiceOn));
+  applyUI();
+  if(voiceOn){ warm(); }
+});
+
+// Language switcher: cambia UI e voce
+document.querySelector('.lang').addEventListener('click',e=>{
+  const btn = e.target.closest('[data-lang]'); if(!btn) return;
+  lang = btn.getAttribute('data-lang');
+  localStorage.setItem('lang', lang);
+  const u = new URL(location); u.searchParams.set('lang', lang); history.replaceState(null,'',u);
+  refreshVoice(); // ricalibra la voce sulla nuova lingua
+  applyUI();
+  chatEl.innerHTML=''; welcome();
+  if(voiceOn) warm();
+});
 
 function applyUI(){
   const t = UI_I18N[lang] || UI_I18N.en;
@@ -483,31 +554,6 @@ function applyUI(){
     b.setAttribute('aria-current', b.getAttribute('data-lang')===lang ? 'true':'false');
   });
 }
-
-let voiceOn = false, pick = null;
-function pickSamantha(){
-  const all = window.speechSynthesis ? (speechSynthesis.getVoices()||[]) : [];
-  const en = all.filter(v=>/en-/i.test(v.lang));
-  pick = en.find(v=>/samantha/i.test(v.name)) || en[0] || all[0] || null;
-}
-if ('speechSynthesis' in window){
-  pickSamantha(); window.speechSynthesis.onvoiceschanged = pickSamantha;
-}
-function warm(){ if(lang!=='en') return; try{ const u=new SpeechSynthesisUtterance('Voice enabled.'); if(pick) u.voice=pick; u.lang='en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{} }
-function speak(t){ if(lang!=='en'||!voiceOn||!('speechSynthesis'in window))return; try{ const u=new SpeechSynthesisUtterance(t); if(pick) u.voice=pick; u.lang='en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u);}catch{} }
-
-document.getElementById('voiceBtn').addEventListener('click',e=>{
-  voiceOn=!voiceOn; e.currentTarget.setAttribute('aria-pressed',String(voiceOn));
-  applyUI(); if (voiceOn) warm();
-});
-
-document.querySelector('.lang').addEventListener('click',e=>{
-  const btn = e.target.closest('[data-lang]'); if(!btn) return;
-  lang = btn.getAttribute('data-lang'); localStorage.setItem('lang', lang);
-  const u = new URL(location); u.searchParams.set('lang', lang); history.replaceState(null,'',u);
-  applyUI();
-  chatEl.innerHTML=''; welcome();
-});
 
 function add(type, txt){
   const d=document.createElement('div');
@@ -524,7 +570,8 @@ function welcome(){
   for(const key of BUTTON_KEYS){
     const label = t.buttons[key] || key;
     const b=document.createElement('button'); b.textContent=label;
-    b.onclick=()=>{ input.value=key; send(); }; // keyword EN
+    // invia keyword EN per il matching
+    b.onclick=()=>{ input.value=key; send(); };
     q.appendChild(b);
   }
   chatEl.appendChild(q);
@@ -539,9 +586,13 @@ async function send(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({message:text, lang})
     });
-    const data=await r.json(); const bot=data.text||'Sorry, something went wrong.';
-    add('wd',bot); speak(bot);
-  }catch{ add('wd','Network error. Please try again.'); }
+    const data=await r.json();
+    const bot=data.text||'Sorry, something went wrong.';
+    add('wd',bot);
+    speak(bot); // legge ogni risposta
+  }catch{
+    add('wd','Network error. Please try again.');
+  }
 }
 sendBtn.addEventListener('click',send);
 input.addEventListener('keydown',e=>{ if(e.key==='Enter') send(); });
