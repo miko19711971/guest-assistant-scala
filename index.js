@@ -9,6 +9,10 @@ app.use(express.json());
 app.use(express.static('.')); // static (logo, favicon)
 
 // ----------------------------------------------------
+// ENV per feedback -> Google Apps Script
+const WEBHOOK_URL = process.env.WEBHOOK_URL || ''; // URL della tua Web App (POST JSON)
+
+// ----------------------------------------------------
 // Base (dati “neutri”)
 const base = {
   apartment_id: 'SCALA17',
@@ -353,7 +357,29 @@ app.post('/api/message', async (req,res)=>{
   res.json({ text, intent });
 });
 
-// -------------- UI (con switch lingue e TTS per lingua) --------------
+// ---- Proxy feedback -> Google Apps Script (webhook) ----
+app.post('/api/feedback', async (req, res) => {
+  const payload = req.body || {};
+  if (!WEBHOOK_URL) {
+    console.log('Feedback (no WEBHOOK_URL):', payload);
+    return res.json({ ok: false, error: 'WEBHOOK_URL missing' });
+  }
+  try {
+    const r = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const ok = r.ok;
+    const echo = await r.text().catch(()=> '');
+    return res.json({ ok, echo: echo.slice(0,200) });
+  } catch (e) {
+    console.error('Feedback error:', e);
+    return res.json({ ok: false, error: String(e?.message || e) });
+  }
+});
+
+// -------------- UI (con switch lingue, TTS e feedback) --------------
 app.get('/', (_req,res)=>{
   const BUTTON_KEYS = ['wifi','check in','check out','water','bathroom','gas','eat','drink','shop','visit','experience','day trips','transport','services','emergency'];
   const UI_I18N = {
@@ -362,31 +388,36 @@ app.get('/', (_req,res)=>{
          buttons:{ wifi:'wifi','check in':'check in','check out':'check out','water':'water','bathroom':'bathroom','gas':'gas',
            eat:'eat','drink':'drink','shop':'shop','visit':'visit','experience':'experience','day trips':'day trips',
            transport:'transport','services':'services','emergency':'emergency' },
-         voice_on:'🔊 Voice: On', voice_off:'🔇 Voice: Off', apt_label: base.apt_label.en },
+         voice_on:'🔊 Voice: On', voice_off:'🔇 Voice: Off', apt_label: base.apt_label.en,
+         fb_label:'Was this helpful?', like:'👍 Helpful', dislike:'👎 Not helpful', thanks:'Thanks for the feedback!' },
     it:{ welcome:'Ciao, sono Samantha, la tua guida virtuale. Tocca un pulsante per una risposta rapida.',
          placeholder:'Scrivi un messaggio… es. wifi, gas, trasporti',
          buttons:{ wifi:'wifi','check in':'check in','check out':'check out','water':'acqua','bathroom':'bagno','gas':'gas',
            eat:'mangiare','drink':'bere','shop':'shopping','visit':'visitare','experience':'esperienze','day trips':'gite di un giorno',
            transport:'trasporti','services':'servizi','emergency':'emergenza' },
-         voice_on:'🔊 Voce: On', voice_off:'🔇 Voce: Off', apt_label: base.apt_label.it },
+         voice_on:'🔊 Voce: On', voice_off:'🔇 Voce: Off', apt_label: base.apt_label.it,
+         fb_label:'Ti è stata utile?', like:'👍 Utile', dislike:'👎 Non utile', thanks:'Grazie per il feedback!' },
     fr:{ welcome:'Bonjour, je suis Samantha, votre guide virtuel. Touchez un bouton pour une réponse rapide.',
          placeholder:'Écrivez un message… ex. wifi, gaz, transport',
          buttons:{ wifi:'wifi','check in':'check in','check out':'check out','water':'eau','bathroom':'salle de bain','gas':'gaz',
            eat:'manger','drink':'boire','shop':'shopping','visit':'visiter','experience':'expériences','day trips':'excursions',
            transport:'transports','services':'services','emergency':'urgence' },
-         voice_on:'🔊 Voix : Activée', voice_off:'🔇 Voix : Désactivée', apt_label: base.apt_label.fr },
+         voice_on:'🔊 Voix : Activée', voice_off:'🔇 Voix : Désactivée', apt_label: base.apt_label.fr,
+         fb_label:'Cette réponse vous a aidé ?', like:'👍 Utile', dislike:'👎 Pas utile', thanks:'Merci pour votre retour !' },
     de:{ welcome:'Hallo, ich bin Samantha, dein virtueller Guide. Tippe auf einen Button für eine schnelle Antwort.',
          placeholder:'Nachricht eingeben… z. B. WLAN, Gas, Verkehr',
          buttons:{ wifi:'WLAN','check in':'check in','check out':'check out','water':'Wasser','bathroom':'Bad','gas':'Gas',
            eat:'Essen','drink':'Trinken','shop':'Shopping','visit':'Sehenswürdigkeiten','experience':'Erlebnisse','day trips':'Tagesausflüge',
            transport:'Verkehr','services':'Services','emergency':'Notfall' },
-         voice_on:'🔊 Stimme: An', voice_off:'🔇 Stimme: Aus', apt_label: base.apt_label.de },
+         voice_on:'🔊 Stimme: An', voice_off:'🔇 Stimme: Aus', apt_label: base.apt_label.de,
+         fb_label:'War das hilfreich?', like:'👍 Hilfreich', dislike:'👎 Nicht hilfreich', thanks:'Danke für das Feedback!' },
     es:{ welcome:'Hola, soy Samantha, tu guía virtual. Toca un botón para una respuesta rápida.',
          placeholder:'Escribe un mensaje… p. ej., wifi, gas, transporte',
          buttons:{ wifi:'wifi','check in':'check in','check out':'check out','water':'agua','bathroom':'baño','gas':'gas',
            eat:'comer','drink':'beber','shop':'compras','visit':'visitar','experience':'experiencias','day trips':'excursiones',
            transport:'transporte','services':'servicios','emergency':'emergencia' },
-         voice_on:'🔊 Voz: Activada', voice_off:'🔇 Voz: Desactivada', apt_label: base.apt_label.es }
+         voice_on:'🔊 Voz: Activada', voice_off:'🔇 Voz: Desactivada', apt_label: base.apt_label.es,
+         fb_label:'¿Te ha sido útil?', like:'👍 Útil', dislike:'👎 No útil', thanks:'¡Gracias por tu opinión!' }
   };
 
   const html = `<!doctype html>
@@ -416,6 +447,9 @@ main{flex:1;padding:12px}
 .quick{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
 .quick button{border:1px solid #d6c5b8;background:#fff;color:#333;padding:6px 10px;border-radius:12px;cursor:pointer}
 .quick button:active{transform:translateY(1px)}
+.fb{display:flex;align-items:center;gap:8px;margin:6px 0 0 0;font-size:13px;opacity:.9}
+.fb button{border:1px solid #ddd;background:#fff;padding:4px 8px;border-radius:10px;cursor:pointer}
+.fb button:disabled{opacity:.6;cursor:default}
 footer{position:sticky;bottom:0;background:#fff;display:flex;gap:8px;padding:10px;border-top:1px solid #e0e0e0}
 input{flex:1;padding:12px;border:1px solid #cbd5e1;border-radius:10px;outline:none}
 #sendBtn{padding:12px 14px;border:1px solid #2b2118;background:#2b2118;color:#fff;border-radius:10px;cursor:pointer}
@@ -452,6 +486,7 @@ input{flex:1;padding:12px;border:1px solid #cbd5e1;border-radius:10px;outline:no
 <script>
 const UI_I18N = ${JSON.stringify(UI_I18N)};
 const BUTTON_KEYS = ${JSON.stringify(BUTTON_KEYS)};
+const APT_ID = ${JSON.stringify(base.apartment_id)};
 
 const chatEl = document.getElementById('chat');
 const input = document.getElementById('input');
@@ -464,10 +499,9 @@ if(!UI_I18N[lang]) lang='en';
 url.searchParams.set('lang', lang); history.replaceState(null,'',url);
 localStorage.setItem('lang', lang);
 
-// ---------- TEXT-TO-SPEECH (voce madrelingua per lingua) ----------
+// ---------- TEXT-TO-SPEECH ----------
 let voiceOn = false, pick = null;
 
-// Preferenze per ciascuna lingua (in ordine di priorità)
 const VOICE_PREFS = {
   en: ['Samantha','Google US English'],
   it: ['Alice','Eloisa','Google italiano'],
@@ -476,52 +510,39 @@ const VOICE_PREFS = {
   es: ['Monica','Jorge','Paulina','Google español']
 };
 
-// Cerca una voce per nome (lista) e/o per lang
 function selectVoice(){
   if(!('speechSynthesis' in window)) return null;
   const all = speechSynthesis.getVoices() || [];
   const prefs = VOICE_PREFS[lang] || [];
-  // 1) match per nome preferito
   for(const name of prefs){
     const v = all.find(v => (v.name||'').toLowerCase() === name.toLowerCase());
     if(v) return v;
   }
-  // 2) prima voce che inizia con il codice lingua (es. "it", "fr")
   const byLang = all.find(v => (v.lang||'').toLowerCase().startsWith(lang));
-  if(byLang) return byLang;
-  // 3) fallback: prima voce disponibile
-  return all[0] || null;
+  return byLang || all[0] || null;
 }
-
-function refreshVoice(){
-  pick = selectVoice();
-}
-
+function refreshVoice(){ pick = selectVoice(); }
 if ('speechSynthesis' in window){
-  refreshVoice();
-  speechSynthesis.onvoiceschanged = refreshVoice;
+  refreshVoice(); speechSynthesis.onvoiceschanged = refreshVoice;
 }
-
-// warm-up: micro-utterance (necessario su iOS/Safari)
 function warm(){
   if(!('speechSynthesis' in window)) return;
   try{
     speechSynthesis.cancel();
     const dot = new SpeechSynthesisUtterance('.');
-    dot.rate = 1; dot.pitch = 1; dot.volume = 0.01; // quasi muto
-    if(pick) dot.voice = pick;
+    dot.rate=1; dot.pitch=1; dot.volume=0.01;
+    if(pick) dot.voice=pick;
     dot.lang = pick?.lang || lang;
     speechSynthesis.speak(dot);
   }catch{}
 }
-
 function speak(t){
   if(!voiceOn || !('speechSynthesis' in window)) return;
   try{
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(t);
-    if(pick) u.voice = pick;
-    u.lang = pick?.lang || lang; // garantisce pronuncia nella lingua
+    if(pick) u.voice=pick;
+    u.lang = pick?.lang || lang;
     speechSynthesis.speak(u);
   }catch{}
 }
@@ -533,15 +554,13 @@ document.getElementById('voiceBtn').addEventListener('click',e=>{
   if(voiceOn){ warm(); }
 });
 
-// Language switcher: cambia UI e voce
 document.querySelector('.lang').addEventListener('click',e=>{
   const btn = e.target.closest('[data-lang]'); if(!btn) return;
   lang = btn.getAttribute('data-lang');
   localStorage.setItem('lang', lang);
   const u = new URL(location); u.searchParams.set('lang', lang); history.replaceState(null,'',u);
-  refreshVoice(); // ricalibra la voce sulla nuova lingua
-  applyUI();
-  chatEl.innerHTML=''; welcome();
+  refreshVoice();
+  applyUI(); chatEl.innerHTML=''; welcome();
   if(voiceOn) warm();
 });
 
@@ -555,11 +574,48 @@ function applyUI(){
   });
 }
 
-function add(type, txt){
+function add(type, txt, meta){
   const d=document.createElement('div');
   d.className='msg '+(type==='me'?'me':'wd');
   d.textContent=txt;
   chatEl.appendChild(d);
+
+  // feedback solo sui messaggi del bot
+  if(type!=='me'){
+    const t = UI_I18N[lang] || UI_I18N.en;
+    const fb=document.createElement('div');
+    fb.className='fb';
+    const label=document.createElement('span'); label.textContent=t.fb_label;
+    const b1=document.createElement('button'); b1.textContent=t.like;
+    const b2=document.createElement('button'); b2.textContent=t.dislike;
+
+    const disable=(msg)=>{ b1.disabled=true; b2.disabled=true; label.textContent = msg || t.thanks; };
+
+    async function sendFeedback(kind){
+      try{
+        const payload = {
+          apartment_id: APT_ID,
+          lang,
+          intent: meta?.intent || null,
+          rating: kind,                 // 'like' | 'dislike'
+          text: txt,                    // testo mostrato all’utente
+          ts: Date.now(),
+          userAgent: navigator.userAgent,
+          origin: location.origin,
+          path: location.pathname + location.search
+        };
+        await fetch('/api/feedback',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        disable();
+      }catch{
+        disable();
+      }
+    }
+    b1.onclick=()=>sendFeedback('like');
+    b2.onclick=()=>sendFeedback('dislike');
+    fb.appendChild(label); fb.appendChild(b1); fb.appendChild(b2);
+    chatEl.appendChild(fb);
+  }
+
   chatEl.scrollTop=chatEl.scrollHeight;
 }
 
@@ -570,8 +626,7 @@ function welcome(){
   for(const key of BUTTON_KEYS){
     const label = t.buttons[key] || key;
     const b=document.createElement('button'); b.textContent=label;
-    // invia keyword EN per il matching
-    b.onclick=()=>{ input.value=key; send(); };
+    b.onclick=()=>{ input.value=key; send(); }; // invia keyword EN
     q.appendChild(b);
   }
   chatEl.appendChild(q);
@@ -588,7 +643,7 @@ async function send(){
     });
     const data=await r.json();
     const bot=data.text||'Sorry, something went wrong.';
-    add('wd',bot);
+    add('wd',bot,{ intent: data.intent || null });
     speak(bot); // legge ogni risposta
   }catch{
     add('wd','Network error. Please try again.');
