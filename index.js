@@ -184,7 +184,7 @@ const APT_I18N = {
     visit: 'Santa Maria in Trastevere (mosaicos); Santa Cecilia; Museo de Roma en Trastevere; Jardín Botánico; Villa Farnesina; Ponte Sisto → Campo de’ Fiori → Piazza Navona.',
     experiences: 'Ruta panorámica: Via della Scala → S. Maria in Trastevere → Santa Cecilia → Gianicolo → Jardín Botánico. Noche de vino en La Vite o San Calisto; dulces en Valzani; paseo romántico por Ponte Sisto.',
     daytrips: 'Ostia Antica (~40 min); Tivoli (Villa d’Este y Villa Adriana ~1h); Castelli Romani (pueblos y vino).',
-    romantic_walk: 'Inicio: Via della Scala 17 → Santa Maria in Trastevere → Ponte Sisto (atardecer) → Campo de’ Fiori → Piazza Navona → helado en Fior di Luna → Biscottificio Innocenti → regreso a Via della Scala 17.',
+    romantic_walk: 'Inicio: Via della Scala 17 → Santa Maria in Trastevere → Ponte Sisto (atardecer) → Campo de’ Fiori → Piazza Navona → helado en Fior de Luna → Biscottificio Innocenti → regreso a Via della Scala 17.',
     checkout_note: 'Antes de salir: apaga las luces, cierra las ventanas, deja las llaves en la mesa, cierra la puerta suavemente.'
   }
 };
@@ -453,6 +453,58 @@ main{flex:1;padding:12px}
 footer{position:sticky;bottom:0;background:#fff;display:flex;gap:8px;padding:10px;border-top:1px solid #e0e0e0}
 input{flex:1;padding:12px;border:1px solid #cbd5e1;border-radius:10px;outline:none}
 #sendBtn{padding:12px 14px;border:1px solid #2b2118;background:#2b2118;color:#fff;border-radius:10px;cursor:pointer}
+
+/* ===== More dropdown (matching quick buttons style) ===== */
+.quick .more-btn {
+  border: 1px solid #d6c5b8;
+  background: #fff;
+  color: #333;
+  padding: 6px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.quick .more-btn:active { transform: translateY(1px); }
+
+.more-panel {
+  position: absolute;
+  z-index: 9999;
+  min-width: 260px;
+  max-width: min(92vw, 420px);
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.08);
+  padding: 10px 12px;
+  display: none; /* toggled by JS */
+}
+
+.more-panel.open { display: block; }
+
+.more-section { margin-bottom: 12px; }
+.more-section:last-child { margin-bottom: 0; }
+
+.more-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 4px 0 6px;
+  color: #222;
+}
+
+.more-links { display: grid; gap: 6px; }
+.more-links a {
+  text-decoration: none;
+  font-size: 14px;
+  color: #2b2118; /* brand color scura */
+  border: 1px dashed #d6c5b8;
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: #fff;
+}
+.more-links a:active { transform: translateY(1px); }
 </style></head>
 <body>
 <div class="wrap">
@@ -484,9 +536,83 @@ input{flex:1;padding:12px;border:1px solid #cbd5e1;border-radius:10px;outline:no
   </footer>
 </div>
 <script>
-const UI_I18N = ${JSON.stringify(UI_I18N)};
-const BUTTON_KEYS = ${JSON.stringify(BUTTON_KEYS)};
+
+const UI_I18N = ${JSON.stringify({
+  en:{ welcome:'Hi, I am Samantha, your virtual assistant. Tap a button to get a quick answer.',
+       placeholder:'Type a message… e.g., wifi, gas, transport',
+       buttons:{ wifi:'wifi','check in':'check in','check out':'check out','water':'water','bathroom':'bathroom','gas':'gas',
+         eat:'eat','drink':'drink','shop':'shop','visit':'visit','experience':'experience','day trips':'day trips',
+         transport:'transport','services':'services','emergency':'emergency' },
+       voice_on:'🔊 Voice: On', voice_off:'🔇 Voice: Off', apt_label: base.apt_label.en,
+       fb_label:'Was this helpful?', like:'👍 Helpful', dislike:'👎 Not helpful', thanks:'Thanks for the feedback!' },
+  it:{ welcome:'Ciao, sono Samantha, la tua guida virtuale. Tocca un pulsante per una risposta rapida.',
+       placeholder:'Scrivi un messaggio… es. wifi, gas, trasporti',
+       buttons:{ wifi:'wifi','check in':'check in','check out':'check out','water':'acqua','bathroom':'bagno','gas':'gas',
+         eat:'mangiare','drink':'bere','shop':'shopping','visit':'visitare','experience':'esperienze','day trips':'gite di un giorno',
+         transport:'trasporti','services':'servizi','emergency':'emergenza' },
+       voice_on:'🔊 Voce: On', voice_off:'🔇 Voce: Off', apt_label: base.apt_label.it,
+       fb_label:'Ti è stata utile?', like:'👍 Utile', dislike:'👎 Non utile', thanks:'Grazie per il feedback!' },
+  fr:{ welcome:'Bonjour, je suis Samantha, votre guide virtuel. Touchez un bouton pour une réponse rapide.',
+       placeholder:'Écrivez un message… ex. wifi, gaz, transport',
+       buttons:{ wifi:'wifi','check in':'check in','check out':'check out','water':'eau','bathroom':'salle de bain','gas':'gaz',
+         eat:'manger','drink':'boire','shop':'shopping','visit':'visiter','experience':'expériences','day trips':'excursions',
+         transport:'transports','services':'services','emergency':'urgence' },
+       voice_on:'🔊 Voix : Activée', voice_off:'🔇 Voix : Désactivée', apt_label: base.apt_label.fr,
+       fb_label:'Cette réponse vous a aidé ?', like:'👍 Utile', dislike:'👎 Pas utile', thanks:'Merci pour votre retour !' },
+  de:{ welcome:'Hallo, ich bin Samantha, dein virtueller Guide. Tippe auf einen Button für eine schnelle Antwort.',
+       placeholder:'Nachricht eingeben… z. B. WLAN, Gas, Verkehr',
+       buttons:{ wifi:'WLAN','check in':'check in','check out':'check out','water':'Wasser','bathroom':'Bad','gas':'Gas',
+         eat:'Essen','drink':'Trinken','shop':'Shopping','visit':'Sehenswürdigkeiten','experience':'Erlebnisse','day trips':'Tagesausflüge',
+         transport:'Verkehr','services':'Services','emergency':'Notfall' },
+       voice_on:'🔊 Stimme: An', voice_off:'🔇 Stimme: Aus', apt_label: base.apt_label.de,
+       fb_label:'War das hilfreich?', like:'👍 Hilfreich', dislike:'👎 Nicht hilfreich', thanks:'Danke für das Feedback!' },
+  es:{ welcome:'Hola, soy Samantha, tu guía virtual. Toca un botón para una respuesta rápida.',
+       placeholder:'Escribe un mensaje… p. ej., wifi, gas, transporte',
+       buttons:{ wifi:'wifi','check in':'check in','check out':'check out','water':'agua','bathroom':'baño','gas':'gas',
+         eat:'comer','drink':'beber','shop':'compras','visit':'visitar','experience':'experiencias','day trips':'excursiones',
+         transport:'transporte','services':'servicios','emergency':'emergencia' },
+       voice_on:'🔊 Voz: Activada', voice_off:'🔇 Voz: Desactivada', apt_label: base.apt_label.es,
+       fb_label:'¿Te ha sido útil?', like:'👍 Útil', dislike:'👎 No útil', thanks:'¡Gracias por tu opinión!' }
+})};
+
+const BUTTON_KEYS = ${JSON.stringify(['wifi','check in','check out','water','bathroom','gas','eat','drink','shop','visit','experience','day trips','transport','services','emergency'])};
 const APT_ID = ${JSON.stringify(base.apartment_id)};
+
+// ===== LINKS for "More" dropdown (English-only, as requested)
+const MORE_LINKS = [
+  {
+    title: 'Events (Today)',
+    links: [
+      { label: 'Wanted in Rome – What’s On', url: 'https://www.wantedinrome.com/whatson' },
+      { label: 'Eventbrite – Today in Rome', url: 'https://www.eventbrite.com/d/italy--roma/events--today/' },
+      { label: 'Fever – Today in Rome', url: 'https://feverup.com/en/rome/when/today' }
+    ]
+  },
+  {
+    title: 'Culture & History',
+    links: [
+      { label: 'Colosseum Archaeological Park (official)', url: 'https://colosseo.it/en/' },
+      { label: 'Vatican Museums (official)', url: 'https://www.museivaticani.va/' },
+      { label: 'Capitoline Museums (official)', url: 'https://www.museicapitolini.org/en' }
+    ]
+  },
+  {
+    title: 'Cinema & Theatre',
+    links: [
+      { label: 'Rome Review – Original Language Movies', url: 'https://www.romereview.com/' },
+      { label: 'TicketOne – Theatre in Rome', url: 'https://www.ticketone.it/en/city/roma-216/teatro-58/' },
+      { label: 'Teatro dell’Opera di Roma (official)', url: 'https://www.operaroma.it/en/' }
+    ]
+  },
+  {
+    title: 'Sports & Live Shows',
+    links: [
+      { label: 'TicketOne – All Events in Rome', url: 'https://www.ticketone.it/en/city/roma-216/' },
+      { label: 'AS Roma – Tickets (official)', url: 'https://www.asroma.com/en/tickets' },
+      { label: 'S.S. Lazio – Tickets (official)', url: 'https://www.sslazio.it/en/biglietteria/matches' }
+    ]
+  }
+];
 
 const chatEl = document.getElementById('chat');
 const input = document.getElementById('input');
@@ -545,6 +671,112 @@ function speak(t){
     u.lang = pick?.lang || lang;
     speechSynthesis.speak(u);
   }catch{}
+}
+
+// ===== "More" dropdown helpers =====
+function createMorePanel() {
+  let panel = document.getElementById('more-panel');
+  if (panel) return panel;
+
+  panel = document.createElement('div');
+  panel.className = 'more-panel';
+  panel.id = 'more-panel';
+
+  MORE_LINKS.forEach(sec => {
+    const box = document.createElement('div');
+    box.className = 'more-section';
+
+    const h = document.createElement('div');
+    h.className = 'more-title';
+    h.textContent = sec.title;
+    box.appendChild(h);
+
+    const list = document.createElement('div');
+    list.className = 'more-links';
+
+    sec.links.forEach(l => {
+      const a = document.createElement('a');
+      a.href = l.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = l.label;
+      list.appendChild(a);
+    });
+
+    box.appendChild(list);
+    panel.appendChild(box);
+  });
+
+  document.body.appendChild(panel);
+  return panel;
+}
+
+let moreBtnEl = null;
+let morePanelEl = null;
+let moreOpen = false;
+
+function positionPanelUnder(btn, panel) {
+  const rect = btn.getBoundingClientRect();
+  const top = rect.bottom + window.scrollY + 6;   // 6px gap
+  let left = rect.left + window.scrollX;
+  const maxLeft = window.scrollX + (document.documentElement.clientWidth - panel.offsetWidth - 10);
+  if (left > maxLeft) left = Math.max(10, maxLeft);
+  panel.style.top = `${top}px`;
+  panel.style.left = `${left}px`;
+}
+function openMore() {
+  if (!moreBtnEl || !morePanelEl) return;
+  morePanelEl.classList.add('open');
+  positionPanelUnder(moreBtnEl, morePanelEl);
+  moreOpen = true;
+}
+function closeMore() {
+  if (!morePanelEl) return;
+  morePanelEl.classList.remove('open');
+  moreOpen = false;
+}
+function toggleMore() { if (moreOpen) closeMore(); else openMore(); }
+
+// Chiusura su click fuori / ESC / scroll / resize
+(function installGlobalClosers(){
+  document.addEventListener('click', (e) => {
+    if (!moreOpen) return;
+    const insideBtn = moreBtnEl && moreBtnEl.contains(e.target);
+    const insidePanel = morePanelEl && morePanelEl.contains(e.target);
+    if (!insideBtn && !insidePanel) closeMore();
+  });
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMore(); });
+  window.addEventListener('scroll', () => { if (moreOpen) closeMore(); }, { passive: true });
+  window.addEventListener('resize', () => { if (moreOpen) closeMore(); });
+})();
+
+function installMoreMenu() {
+  // trova l'ultima riga di quick buttons
+  const rows = document.querySelectorAll('.quick');
+  if (!rows.length) return;
+  const row = rows[rows.length - 1];
+
+  // evita duplicati
+  if (row.querySelector('.more-btn')) return;
+
+  // crea bottone More
+  const btn = document.createElement('button');
+  btn.className = 'more-btn';
+  btn.type = 'button';
+  btn.setAttribute('aria-expanded', 'false');
+  btn.textContent = 'More'; // come richiesto: sempre "More" in tutte le lingue
+
+  const panel = createMorePanel();
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moreBtnEl = btn;
+    morePanelEl = panel;
+    toggleMore();
+    btn.setAttribute('aria-expanded', String(moreOpen));
+  });
+
+  row.appendChild(btn);
 }
 
 document.getElementById('voiceBtn').addEventListener('click',e=>{
@@ -630,6 +862,9 @@ function welcome(){
     q.appendChild(b);
   }
   chatEl.appendChild(q);
+
+  // installa il bottone "More" accanto a Emergency
+  installMoreMenu();
 }
 
 async function send(){
@@ -649,8 +884,8 @@ async function send(){
     add('wd','Network error. Please try again.');
   }
 }
-sendBtn.addEventListener('click',send);
-input.addEventListener('keydown',e=>{ if(e.key==='Enter') send(); });
+document.getElementById('sendBtn').addEventListener('click',send);
+document.getElementById('input').addEventListener('keydown',e=>{ if(e.key==='Enter') send(); });
 
 applyUI();
 welcome();
@@ -658,7 +893,8 @@ welcome();
 </body></html>`;
   res.setHeader('content-type','text/html; charset=utf-8');
   res.end(html);
-});
+}
+);
 
 // ---------- Start ----------
 const port = process.env.PORT || 8787;
